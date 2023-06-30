@@ -1,0 +1,98 @@
+version: "3.3"
+
+services:
+    web:
+        build:
+            context: ./backend
+            dockerfile: ./Dockerfile
+        container_name: fenix_store_web
+        command: bash entrypoint.sh
+        volumes:
+            - ./backend:/app/backend
+        ports:
+            - "8000:8000"
+        env_file:
+            - ./backend/.env
+        depends_on:
+            - db
+            - redis
+
+    db:
+        image: postgres:12
+        container_name: fenix_store_db
+        ports:
+            - "5432:5432"
+        volumes:
+            - fenix_eshop_postgres_data:/var/lib/postgresql/data/
+        env_file:
+            - ./backend/.env
+
+    redis:
+        image: redis:latest
+        volumes:
+            - fenix_redis_data:/data
+
+    worker:
+        build: 
+            context: ./backend
+            dockerfile: ./Dockerfile
+        hostname: worker
+        entrypoint: celery
+        container_name: fenix_store_worker
+        command: -A config.celery worker --loglevel=info
+        volumes:
+            - ./backend:/app/backend
+        links:
+            - redis
+        env_file:
+            - ./backend/.env
+        depends_on:
+            - redis
+
+    flower:
+        build: 
+            context: ./backend
+            dockerfile: ./Dockerfile
+        hostname: flower
+        entrypoint: celery
+        container_name: fenix_store_flower
+        command: -A config.celery flower
+        volumes:
+            - ./backend:/app/backend
+        ports:
+            - "5555:5555"
+        env_file:
+            - ./backend/.env
+        depends_on:
+            - redis
+
+    
+    frontend:
+        build:
+            context: ./frontend
+            dockerfile: ./Dockerfile
+        container_name: fenix_store_frontend
+        restart: on-failure
+        volumes:
+            - ./frontend:/app
+        depends_on:
+            - web
+
+      
+    nginx:
+        build: 
+            context: ./backend
+            dockerfile: ./nginx/Dockerfile
+        container_name: fenix_store_nginx
+        restart: on-failure
+        volumes:
+            - ./backend/static:/app/backend/static
+            - ./backend/media:/app/backend/media
+        ports:
+            - "80:80"
+        depends_on:
+            - web
+
+volumes:
+    fenix_eshop_postgres_data:
+    fenix_redis_data:
